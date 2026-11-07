@@ -1,0 +1,447 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GenAI Vocabulary Graph</title>
+<style>
+:root {
+  color-scheme: light;
+  --page: #f7f7f5;
+  --surface: #fcfcfb;
+  --text-primary: #0b0b0b;
+  --text-secondary: #52514e;
+  --text-muted: #6f6e69;
+  --border: #dddcd6;
+  --track: #ecebe6;
+  --explicit: #2a78d6;
+  --implicit: #eb6834;
+  --accent-soft: #e7f0fb;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --page: #121211;
+    --surface: #1a1a19;
+    --text-primary: #f0efec;
+    --text-secondary: #c3c2b7;
+    --text-muted: #a3a29a;
+    --border: #363632;
+    --track: #2b2b28;
+    --explicit: #3987e5;
+    --implicit: #d95926;
+    --accent-soft: #20303f;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--text-primary);
+  font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+main { max-width: 1120px; margin: 0 auto; padding: 32px 16px 56px; }
+h1 { font-size: 28px; line-height: 1.2; margin: 0 0 8px; letter-spacing: -0.01em; }
+h2 { font-size: 18px; margin: 0 0 4px; }
+.lead { font-size: 17px; color: var(--text-secondary); margin: 0 0 24px; max-width: 760px; }
+.stats { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 24px; }
+.stat {
+  flex: 1 1 150px; padding: 12px 16px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+}
+.stat b { display: block; font-size: 26px; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.stat span { color: var(--text-secondary); font-size: 13px; }
+.panel {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; padding: 16px; margin-bottom: 20px;
+}
+.controls { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; margin: 12px 0; }
+.segmented { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+.segmented button {
+  font: inherit; font-size: 13px; padding: 6px 12px; border: 0; cursor: pointer;
+  background: transparent; color: var(--text-secondary);
+}
+.segmented button + button { border-left: 1px solid var(--border); }
+.segmented button[aria-pressed="true"] { background: var(--accent-soft); color: var(--text-primary); font-weight: 600; }
+.legend { display: flex; flex-wrap: wrap; gap: 16px; font-size: 13px; color: var(--text-secondary); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend svg { width: 34px; min-width: 0; height: 8px; }
+.hint { font-size: 13px; color: var(--text-muted); margin: 0 0 8px; }
+.graph-scroll { overflow-x: auto; }
+#graph { display: block; width: 100%; min-width: 780px; height: auto; }
+.node { cursor: pointer; outline: none; }
+.node text { fill: var(--text-primary); font-size: 14px; }
+.node text.count { fill: var(--text-muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.node circle { fill: var(--surface); stroke: var(--text-muted); stroke-width: 2; }
+.node:focus-visible text:first-of-type { text-decoration: underline; }
+.node.active text { font-weight: 600; }
+.node.active circle { fill: var(--text-primary); stroke: var(--text-primary); }
+.node.faded { opacity: 0.35; }
+.edge { fill: none; stroke-linecap: round; opacity: 0.55; transition: opacity 120ms; }
+.edge.explicit { stroke: var(--explicit); }
+.edge.implicit { stroke: var(--implicit); stroke-dasharray: 5 5; stroke-linecap: butt; }
+.edge.on { opacity: 1; }
+.edge.off { opacity: 0.06; }
+.edge-hit { fill: none; stroke: transparent; stroke-width: 12; }
+.column-title { fill: var(--text-muted); font-size: 12px; letter-spacing: 0.04em; text-transform: uppercase; }
+#tooltip {
+  position: fixed; z-index: 5; display: none; pointer-events: none; max-width: 260px;
+  background: var(--text-primary); color: var(--surface);
+  font-size: 13px; padding: 6px 9px; border-radius: 6px;
+}
+#evidence-title { font-weight: 600; }
+#evidence-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; }
+#evidence-list li {
+  padding: 8px 10px; border-radius: 6px; background: var(--page);
+  font-size: 14px; border-left: 3px solid var(--explicit);
+}
+#evidence-list li.implicit { border-left-style: dashed; border-left-color: var(--implicit); }
+#evidence-list .meta { display: block; font-size: 12px; color: var(--text-muted); }
+#evidence-list mark { background: transparent; color: inherit; font-weight: 700; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th { text-align: left; font-weight: 600; font-size: 13px; color: var(--text-secondary); padding: 6px 12px 6px 0; border-bottom: 1px solid var(--border); }
+td { padding: 6px 12px 6px 0; border-bottom: 1px solid var(--border); vertical-align: middle; }
+tr:last-child td { border-bottom: 0; }
+td button { font: inherit; padding: 0; border: 0; background: none; color: var(--text-primary); cursor: pointer; text-align: left; }
+td button:hover, td button:focus-visible { text-decoration: underline; }
+.meter { display: flex; align-items: center; gap: 8px; min-width: 150px; }
+.meter i { display: block; flex: 1; height: 8px; background: var(--track); border-radius: 4px; overflow: hidden; }
+.meter i b { display: block; height: 100%; border-radius: 0 4px 4px 0; }
+.meter.explicit i b { background: var(--explicit); }
+.meter.implicit i b { background: repeating-linear-gradient(135deg, var(--implicit) 0 5px, transparent 5px 7px); }
+.meter span { width: 24px; text-align: right; font-variant-numeric: tabular-nums; }
+.table-scroll { overflow-x: auto; }
+.method { color: var(--text-secondary); font-size: 14px; }
+.method h2 { color: var(--text-primary); }
+.method ul { margin: 8px 0 0; padding-left: 20px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>GenAI Vocabulary Graph</h1>
+  <p class="lead" id="lead"></p>
+
+  <div class="stats" id="stats"></div>
+
+  <section class="panel" aria-labelledby="graph-title">
+    <h2 id="graph-title">How each term connects to the report</h2>
+    <div class="controls">
+      <div class="segmented" role="group" aria-label="Show mentions">
+        <button type="button" data-mode="both" aria-pressed="true">Both</button>
+        <button type="button" data-mode="explicit" aria-pressed="false">Explicit only</button>
+        <button type="button" data-mode="implicit" aria-pressed="false">Implicit only</button>
+      </div>
+      <div class="legend">
+        <span><svg viewBox="0 0 34 8" aria-hidden="true"><line x1="1" y1="4" x2="33" y2="4" stroke="var(--explicit)" stroke-width="3" stroke-linecap="round"/></svg>Explicit: the term is written</span>
+        <span><svg viewBox="0 0 34 8" aria-hidden="true"><line x1="1" y1="4" x2="33" y2="4" stroke="var(--implicit)" stroke-width="3" stroke-dasharray="5 5"/></svg>Implicit: the idea appears without the term</span>
+      </div>
+    </div>
+    <p class="hint">Numbers beside each label are explicit · implicit mentions. A thicker line means more mentions. Select a term or section to see its quotes.</p>
+    <div class="graph-scroll"><svg id="graph" role="img" aria-label="Graph linking 15 vocabulary terms to the sections of the report. The table below gives the same counts."></svg></div>
+  </section>
+
+  <section class="panel" aria-live="polite">
+    <div id="evidence-title">Evidence</div>
+    <p class="hint" id="evidence-hint">Select a term or section in the graph or table.</p>
+    <ul id="evidence-list"></ul>
+  </section>
+
+  <section class="panel" aria-labelledby="table-title">
+    <h2 id="table-title">Explicit and implicit frequency by term</h2>
+    <p class="hint">Both columns use the same scale. Sorted by total mentions.</p>
+    <div class="table-scroll"><table id="table"></table></div>
+  </section>
+
+  <section class="panel method">
+    <h2>How the counts were made</h2>
+    <ul>
+      <li><b>Scope:</b> the introduction, sections 1 to 10 and the conclusion of the report. The title, contents list and link addresses are not counted.</li>
+      <li><b>Explicit:</b> an automatic search for the term, including its plural, abbreviation or short form. "Human agents" and "agent-assist" are excluded, because they mean people.</li>
+      <li><b>Implicit:</b> phrases chosen by hand that express the idea without the term. Every phrase was checked automatically against the report, and each one is quoted in the evidence list.</li>
+      <li><b>Limit:</b> implicit counts depend on my judgment, so they show how I read the report rather than an exact measure. One phrase can support two terms.</li>
+    </ul>
+  </section>
+</main>
+<div id="tooltip" role="status"></div>
+
+<script id="data" type="application/json">{"sections": [{"key": "intro", "label": "Introduction"}, {"key": "1", "label": "1. Software development"}, {"key": "2", "label": "2. Customer support"}, {"key": "3", "label": "3. Marketing and content"}, {"key": "4", "label": "4. Image, video and audio"}, {"key": "5", "label": "5. Clinical documentation"}, {"key": "6", "label": "6. Drug discovery"}, {"key": "7", "label": "7. Legal research and drafting"}, {"key": "8", "label": "8. Financial services"}, {"key": "9", "label": "9. Enterprise knowledge search"}, {"key": "10", "label": "10. Education and tutoring"}, {"key": "end", "label": "Conclusion"}], "terms": [{"term": "Generative AI", "explicit": 7, "implicit": 10, "hits": [{"section": "intro", "kind": "explicit", "quote": ["November 2026.* This report reviews ten established applications of", "generative AI", ". Each section covers the business value, technical challenges and"]}, {"section": "6", "kind": "explicit", "quote": ["2026. Insilico describes this as the first Phase III trial of a", "generative AI", "-driven drug. Technical challenges and weak points: Models depend on"]}, {"section": "6", "kind": "explicit", "quote": ["III to approval under favorable conditions. No drug discovered with", "generative AI", "has yet been shown to succeed through approval, and timelines can"]}, {"section": "6", "kind": "explicit", "quote": ["Insilico Medicine: A clinical-stage biotech that uses", "generative AI", "for target discovery and molecule design. - Isomorphic Labs: An"]}, {"section": "8", "kind": "explicit", "quote": ["Business value: Banks and investment firms use", "generative AI", "to summarize research, analyze filings and contracts, draft reports"]}, {"section": "8", "kind": "explicit", "quote": ["return. In MIT's widely reported, methodologically debated \"", "GenAI", "Divide\" research, most company pilots across industries showed no"]}, {"section": "end", "kind": "explicit", "quote": ["Across these use cases,", "generative AI", "works best when it assists people on well-defined tasks and has"]}, {"section": "1", "kind": "implicit", "quote": ["the sample. Security is the other main weakness: Veracode found that", "AI-generated code", "introduced risky security flaws in 45% of tests. Output still"]}, {"section": "3", "kind": "implicit", "quote": ["Business value:", "Generative tools", "speed up the production of ad copy, emails, product descriptions and"]}, {"section": "3", "kind": "implicit", "quote": ["marketing teams, with brand voice controls. - Canva Magic Studio:", "Generative design and writing tools", "built into Canva. - Adobe Firefly: Adobe's generative image and"]}, {"section": "3", "kind": "implicit", "quote": ["design and writing tools built into Canva. - Adobe Firefly: Adobe's", "generative image and video tools", "for creative work. - HubSpot AI: AI features for content, campaigns"]}, {"section": "4", "kind": "implicit", "quote": ["Business value:", "Text-to-image, video and voice models", "reduce the cost of concept art, storyboards, training videos,"]}, {"section": "4", "kind": "implicit", "quote": ["workflows on a single tool. Existing implementations: - Runway:", "Generative video models", "and editing tools for creative professionals. - Google Veo: Google"]}, {"section": "4", "kind": "implicit", "quote": ["Veo: Google DeepMind's video generation model family. - Midjourney:", "A generative service", "known for stylized, high-quality images. - ElevenLabs: AI voice"]}, {"section": "4", "kind": "implicit", "quote": ["tools for creative professionals. - Google Veo: Google DeepMind's", "video generation model family", ". - Midjourney: A generative service known for stylized, high-quality"]}, {"section": "4", "kind": "implicit", "quote": ["service known for stylized, high-quality images. - ElevenLabs:", "AI voice generation", ", dubbing and voice agent tools. - Synthesia: A platform for creating"]}, {"section": "10", "kind": "implicit", "quote": ["than human tutoring. Teachers can also use them to prepare lessons,", "generate practice material", "and give faster feedback. This could widen access to individual"]}]}, {"term": "LLM", "explicit": 3, "implicit": 4, "hits": [{"section": "8", "kind": "explicit", "quote": ["productive across very large organizations. JPMorganChase's internal", "LLM", "Suite portal was used by 200,000 people by May 2025. Technical"]}, {"section": "8", "kind": "explicit", "quote": ["on profit and loss. Existing implementations: - JPMorganChase", "LLM", "Suite: An internal portal that gives employees access to external"]}, {"section": "8", "kind": "explicit", "quote": ["Suite: An internal portal that gives employees access to external", "large language models", "(no public product page, so the link goes to press coverage). -"]}, {"section": "7", "kind": "implicit", "quote": ["Fabricated or inaccurate citations are the critical weakness, and", "connecting a model to legal databases", "reduces this risk without removing it. A Stanford study of"]}, {"section": "8", "kind": "implicit", "quote": ["so the link goes to press coverage). - Morgan Stanley AI tools:", "OpenAI-based internal tools", "for the firm's financial advisers. - AlphaSense: A market"]}, {"section": "9", "kind": "implicit", "quote": ["(RAG), which retrieves relevant company content and passes it to", "a language model", ". Technical challenges and weak points: Answers are only as good as"]}, {"section": "10", "kind": "implicit", "quote": ["undergraduates at a US public university found that access to a", "GPT-4o-based tutor", "lowered final grades by 0.37 standard deviations and reduced course"]}]}, {"term": "AI agent", "explicit": 15, "implicit": 2, "hits": [{"section": "1", "kind": "explicit", "quote": ["Business value: Coding assistants and", "agents", "write, explain, test and refactor code, which can shorten delivery"]}, {"section": "1", "kind": "explicit", "quote": ["implementations: - GitHub Copilot: An AI pair programmer and coding", "agent", "built into editors and GitHub. - Claude Code: Anthropic's coding"]}, {"section": "1", "kind": "explicit", "quote": ["built into editors and GitHub. - Claude Code: Anthropic's coding", "agent", ", which reads, edits and runs code from the terminal and other"]}, {"section": "1", "kind": "explicit", "quote": ["Cursor: An AI-first code editor with codebase-aware chat and", "agents", ". - OpenAI Codex: OpenAI's software engineering agent, which carries"]}, {"section": "1", "kind": "explicit", "quote": ["chat and agents. - OpenAI Codex: OpenAI's software engineering", "agent", ", which carries out coding tasks and proposes changes."]}, {"section": "2", "kind": "explicit", "quote": ["Business value: AI", "agents", "answer routine requests around the clock across chat, email and"]}, {"section": "2", "kind": "explicit", "quote": ["expected in its fiscal fourth quarter. The same release says Fin's", "agents", "resolve 76% of support volume on average, which is a vendor-reported"]}, {"section": "2", "kind": "explicit", "quote": ["without a methodology. Technical challenges and weak points: Useful", "agents", "need accurate knowledge bases, secure connections to systems such as"]}, {"section": "2", "kind": "explicit", "quote": ["quality. Existing implementations: - Fin: A customer service AI", "agent", "working across chat, email, phone and messaging channels. - Sierra:"]}, {"section": "2", "kind": "explicit", "quote": ["Sierra: A platform for building branded customer-facing AI", "agents", ". - Salesforce Agentforce: A platform for building AI agents that"]}, {"section": "2", "kind": "explicit", "quote": ["AI agents. - Salesforce Agentforce: A platform for building AI", "agents", "that work with Salesforce data and workflows. - Zendesk AI agents:"]}, {"section": "2", "kind": "explicit", "quote": ["AI agents that work with Salesforce data and workflows. - Zendesk AI", "agents", ": AI agents and agent-assist tools built into the Zendesk service"]}, {"section": "2", "kind": "explicit", "quote": ["work with Salesforce data and workflows. - Zendesk AI agents: AI", "agents", "and agent-assist tools built into the Zendesk service platform."]}, {"section": "4", "kind": "explicit", "quote": ["images. - ElevenLabs: AI voice generation, dubbing and voice", "agent", "tools. - Synthesia: A platform for creating presenter-led videos"]}, {"section": "9", "kind": "explicit", "quote": ["Gemini Enterprise: Google Cloud's platform for company-wide AI", "agents", "and search. - NotebookLM: A Google research assistant that answers"]}, {"section": "1", "kind": "implicit", "quote": ["editors and GitHub. - Claude Code: Anthropic's coding agent, which", "reads, edits and runs code", "from the terminal and other developer tools. - Cursor: An AI-first"]}, {"section": "1", "kind": "implicit", "quote": ["agents. - OpenAI Codex: OpenAI's software engineering agent, which", "carries out coding tasks", "and proposes changes."]}]}, {"term": "Context window", "explicit": 0, "implicit": 1, "hits": [{"section": "1", "kind": "implicit", "quote": ["tests. Output still depends on human review, and large codebases are", "difficult to fit into a model's context", ". Existing implementations: - GitHub Copilot: An AI pair programmer"]}]}, {"term": "RAG", "explicit": 2, "implicit": 7, "hits": [{"section": "9", "kind": "explicit", "quote": ["from being lost in separate tools. Most of these products use", "retrieval-augmented generation", "(RAG), which retrieves relevant company content and passes it to a"]}, {"section": "9", "kind": "explicit", "quote": ["tools. Most of these products use retrieval-augmented generation (", "RAG", "), which retrieves relevant company content and passes it to a"]}, {"section": "5", "kind": "implicit", "quote": ["assistant that combines ambient note-taking and dictation with", "information retrieval", ". - Ambience Healthcare: An ambient AI platform for documentation,"]}, {"section": "7", "kind": "implicit", "quote": ["Fabricated or inaccurate citations are the critical weakness, and", "connecting a model to legal databases", "reduces this risk without removing it. A Stanford study of"]}, {"section": "8", "kind": "implicit", "quote": ["advisers. - AlphaSense: A market intelligence platform with", "AI search and summaries", "across financial content. - Hebbia: An AI platform that analyzes"]}, {"section": "9", "kind": "implicit", "quote": ["value: Employees can ask questions in plain language and get", "answers drawn from documents, email, chat and business systems", ". This saves time spent searching, helps new hires get up to speed"]}, {"section": "9", "kind": "implicit", "quote": ["of these products use retrieval-augmented generation (RAG), which", "retrieves relevant company content", "and passes it to a language model. Technical challenges and weak"]}, {"section": "9", "kind": "implicit", "quote": ["to find. Connecting to many data sources takes ongoing effort, and", "retrieved documents", "can carry prompt injection attacks. The value is also difficult to"]}, {"section": "9", "kind": "implicit", "quote": ["AI agents and search. - NotebookLM: A Google research assistant that", "answers questions using the sources a user provides", "."]}]}, {"term": "Knowledge base", "explicit": 1, "implicit": 6, "hits": [{"section": "2", "kind": "explicit", "quote": ["challenges and weak points: Useful agents need accurate", "knowledge bases", ", secure connections to systems such as billing and order management,"]}, {"section": "3", "kind": "implicit", "quote": ["and meet advertising rules, which usually requires brand guidance,", "approved source material", "and human approval. The main weak point is sameness: when"]}, {"section": "7", "kind": "implicit", "quote": ["citations are the critical weakness, and connecting a model to", "legal databases", "reduces this risk without removing it. A Stanford study of"]}, {"section": "8", "kind": "implicit", "quote": ["analyze filings and contracts, draft reports and help staff find", "internal information", ". These tools can make analysts and advisers more productive across"]}, {"section": "8", "kind": "implicit", "quote": ["can state a wrong figure confidently. Connecting tools securely to", "internal data", "is often the hardest step, as JPMorganChase has noted. Broad usage"]}, {"section": "9", "kind": "implicit", "quote": ["challenges and weak points: Answers are only as good as the", "underlying content", ", and many companies have outdated, duplicated or conflicting"]}, {"section": "9", "kind": "implicit", "quote": ["are only as good as the underlying content, and many companies have", "outdated, duplicated or conflicting documents", ". Access control is a key challenge because the system must respect"]}]}, {"term": "Hallucination", "explicit": 1, "implicit": 5, "hits": [{"section": "7", "kind": "explicit", "quote": ["Charlotin's database lists 2,266 legal cases involving AI-generated", "hallucinations", ". Law firms must also protect client confidentiality and verify all"]}, {"section": "5", "kind": "implicit", "quote": ["health record workflows. Errors carry clinical risk because", "an omitted or invented detail", "can end up in a patient's permanent record, so clinicians must check"]}, {"section": "7", "kind": "implicit", "quote": ["for judgment-heavy tasks. Technical challenges and weak points:", "Fabricated or inaccurate citations", "are the critical weakness, and connecting a model to legal databases"]}, {"section": "7", "kind": "implicit", "quote": ["of specialized tools found that Lexis+ AI and Ask Practical Law AI", "gave incorrect information", "more than 17% of the time, and Westlaw AI-Assisted Research more"]}, {"section": "8", "kind": "implicit", "quote": ["small numerical error can have serious consequences, and models can", "state a wrong figure confidently", ". Connecting tools securely to internal data is often the hardest"]}, {"section": "end", "kind": "implicit", "quote": ["tasks and has access to reliable data. The recurring weak points are", "inaccurate output", ", security and privacy risks, unclear legal questions, and the"]}]}, {"term": "Prompt injection", "explicit": 1, "implicit": 0, "hits": [{"section": "9", "kind": "explicit", "quote": ["data sources takes ongoing effort, and retrieved documents can carry", "prompt injection", "attacks. The value is also difficult to prove, because small time"]}]}, {"term": "Access control", "explicit": 1, "implicit": 4, "hits": [{"section": "9", "kind": "explicit", "quote": ["many companies have outdated, duplicated or conflicting documents.", "Access control", "is a key challenge because the system must respect each user's"]}, {"section": "2", "kind": "implicit", "quote": ["and weak points: Useful agents need accurate knowledge bases,", "secure connections to systems", "such as billing and order management, and clear rules for handing"]}, {"section": "8", "kind": "implicit", "quote": ["consequences, and models can state a wrong figure confidently.", "Connecting tools securely to internal data", "is often the hardest step, as JPMorganChase has noted. Broad usage"]}, {"section": "9", "kind": "implicit", "quote": ["documents. Access control is a key challenge because the system must", "respect each user's permissions", ", otherwise it can expose confidential information that was poorly"]}, {"section": "9", "kind": "implicit", "quote": ["Glean: A work AI platform that searches across company applications", "while respecting permissions", ". - Microsoft 365 Copilot: An assistant that works across Microsoft"]}]}, {"term": "Human-in-the-loop", "explicit": 0, "implicit": 6, "hits": [{"section": "1", "kind": "implicit", "quote": ["risky security flaws in 45% of tests. Output still depends on", "human review", ", and large codebases are difficult to fit into a model's"]}, {"section": "2", "kind": "implicit", "quote": ["to systems such as billing and order management, and clear rules for", "handing over to people", ". Resolution rates are also hard to compare, because each vendor"]}, {"section": "3", "kind": "implicit", "quote": ["which usually requires brand guidance, approved source material and", "human approval", ". The main weak point is sameness: when competitors use the same"]}, {"section": "5", "kind": "implicit", "quote": ["or invented detail can end up in a patient's permanent record, so", "clinicians must check every note", ". That review can absorb part of the time saved. Providers also need"]}, {"section": "7", "kind": "implicit", "quote": ["Law firms must also protect client confidentiality and", "verify all output", ". Existing implementations: - Harvey: An AI platform for law firms"]}, {"section": "end", "kind": "implicit", "quote": ["Across these use cases, generative AI works best when it", "assists people on well-defined tasks", "and has access to reliable data. The recurring weak points are"]}]}, {"term": "Synthetic media", "explicit": 1, "implicit": 4, "hits": [{"section": "4", "kind": "explicit", "quote": ["2025, and Midjourney argues that AI training is fair use. Realistic", "synthetic media", "also enables deepfakes and voice fraud, so consent and content"]}, {"section": "4", "kind": "implicit", "quote": ["models reduce the cost of concept art, storyboards, training videos,", "voice-overs and dubbing", ". Companies can produce localized material in many languages without"]}, {"section": "4", "kind": "implicit", "quote": ["that AI training is fair use. Realistic synthetic media also enables", "deepfakes", "and voice fraud, so consent and content labeling matter. The market"]}, {"section": "4", "kind": "implicit", "quote": ["is fair use. Realistic synthetic media also enables deepfakes and", "voice fraud", ", so consent and content labeling matter. The market is unstable too:"]}, {"section": "4", "kind": "implicit", "quote": ["Synthesia: A platform for creating presenter-led videos with", "AI avatars", ", widely used for corporate training."]}]}, {"term": "Ambient AI scribe", "explicit": 2, "implicit": 4, "hits": [{"section": "5", "kind": "explicit", "quote": ["Business value:", "Ambient AI scribes", "listen to patient visits and draft clinical notes, which aims to"]}, {"section": "5", "kind": "explicit", "quote": ["JAMA study of five US hospitals over more than two years linked", "AI scribes", "to about 16 fewer minutes of documentation per day, a 10%"]}, {"section": "5", "kind": "implicit", "quote": ["such as HIPAA in the US. Existing implementations: - Abridge: An", "ambient AI platform", "that turns patient conversations into clinical notes. - Microsoft"]}, {"section": "5", "kind": "implicit", "quote": ["and dictation with information retrieval. - Ambience Healthcare: An", "ambient AI platform", "for documentation, coding and related clinical workflows. - Nabla:"]}, {"section": "5", "kind": "implicit", "quote": ["Microsoft Dragon Copilot: A clinical assistant that combines", "ambient note-taking", "and dictation with information retrieval. - Ambience Healthcare: An"]}, {"section": "5", "kind": "implicit", "quote": ["documentation, coding and related clinical workflows. - Nabla: An", "ambient AI assistant", "that helps clinicians generate notes."]}]}, {"term": "Model risk", "explicit": 1, "implicit": 3, "hits": [{"section": "8", "kind": "explicit", "quote": ["firms operate under strict rules on privacy, record-keeping,", "model risk", "and client advice, so outputs must be accurate, explainable and"]}, {"section": "5", "kind": "implicit", "quote": ["speech, then fit into electronic health record workflows.", "Errors carry clinical risk", "because an omitted or invented detail can end up in a patient's"]}, {"section": "7", "kind": "implicit", "quote": ["of the time. Those 2024 results may not reflect current versions.", "Mistakes also have professional consequences", ": Damien Charlotin's database lists 2,266 legal cases involving"]}, {"section": "8", "kind": "implicit", "quote": ["must be accurate, explainable and traceable to their sources.", "A small numerical error can have serious consequences", ", and models can state a wrong figure confidently. Connecting tools"]}]}, {"term": "Fair use", "explicit": 1, "implicit": 4, "hits": [{"section": "4", "kind": "explicit", "quote": ["sued Midjourney in 2025, and Midjourney argues that AI training is", "fair use", ". Realistic synthetic media also enables deepfakes and voice fraud,"]}, {"section": "3", "kind": "implicit", "quote": ["and revenue rather than output volume. Unchecked claims and", "unclear ownership of generated assets", "add legal risk. Existing implementations: - Jasper: An AI content"]}, {"section": "4", "kind": "implicit", "quote": ["across shots remains difficult. Copyright is the largest open risk:", "Disney and Universal sued Midjourney", "in 2025, and Midjourney argues that AI training is fair use."]}, {"section": "4", "kind": "implicit", "quote": ["characters and scenes consistent across shots remains difficult.", "Copyright is the largest open risk", ": Disney and Universal sued Midjourney in 2025, and Midjourney argues"]}, {"section": "end", "kind": "implicit", "quote": ["weak points are inaccurate output, security and privacy risks,", "unclear legal questions", ", and the difficulty of proving a financial return. Results also vary"]}]}, {"term": "Pilot", "explicit": 2, "implicit": 4, "hits": [{"section": "8", "kind": "explicit", "quote": ["methodologically debated \"GenAI Divide\" research, most company", "pilots", "across industries showed no measurable effect on profit and"]}, {"section": "end", "kind": "explicit", "quote": ["are best treated as a starting point and tested through a controlled", "pilot", "."]}, {"section": "3", "kind": "implicit", "quote": ["becomes generic and harder to tell apart. Publishing more also", "doesn't prove business impact", ", so teams need to track conversions and revenue rather than output"]}, {"section": "8", "kind": "implicit", "quote": ["often the hardest step, as JPMorganChase has noted. Broad usage also", "doesn't prove financial return", ". In MIT's widely reported, methodologically debated \"GenAI Divide\""]}, {"section": "9", "kind": "implicit", "quote": ["effort, and retrieved documents can carry prompt injection attacks.", "The value is also difficult to prove", ", because small time savings spread across many employees rarely show"]}, {"section": "end", "kind": "implicit", "quote": ["output, security and privacy risks, unclear legal questions, and", "the difficulty of proving a financial return", ". Results also vary widely between organizations, so vendor figures"]}]}]}</script>
+<script>
+(function () {
+  var data = JSON.parse(document.getElementById('data').textContent);
+  var NS = 'http://www.w3.org/2000/svg';
+  var mode = 'both';
+  var selected = null;
+  var sectionIndex = {};
+  data.sections.forEach(function (s, i) { sectionIndex[s.key] = i; });
+
+  function sum(list, key) { return list.reduce(function (t, r) { return t + r[key]; }, 0); }
+  var totalExplicit = sum(data.terms, 'explicit');
+  var totalImplicit = sum(data.terms, 'implicit');
+  var neverWritten = data.terms.filter(function (t) { return t.explicit === 0; });
+
+  document.getElementById('lead').textContent =
+    'The ideas in my vocabulary appear in the report more often than the words themselves: ' +
+    totalImplicit + ' implicit mentions against ' + totalExplicit + ' explicit ones. ' +
+    'Human-in-the-loop is the clearest case, with no explicit mentions and 6 implicit ones across 6 sections.';
+
+  var statsBox = document.getElementById('stats');
+  [
+    [data.terms.length, 'vocabulary terms'],
+    [totalExplicit, 'explicit mentions'],
+    [totalImplicit, 'implicit mentions'],
+    [neverWritten.length, 'terms never written literally']
+  ].forEach(function (s) {
+    var box = document.createElement('div');
+    box.className = 'stat';
+    var value = document.createElement('b');
+    value.textContent = s[0];
+    var label = document.createElement('span');
+    label.textContent = s[1];
+    box.appendChild(value);
+    box.appendChild(label);
+    statsBox.appendChild(box);
+  });
+
+  /* Place terms near the sections they use, so fewer lines cross. */
+  var ordered = data.terms.map(function (t) {
+    var weight = t.hits.reduce(function (acc, h) { return acc + sectionIndex[h.section]; }, 0);
+    return { term: t, position: weight / t.hits.length };
+  }).sort(function (a, b) { return a.position - b.position; }).map(function (r) { return r.term; });
+
+  var W = 1040, TOP = 34, ROW = 35;
+  var H = TOP + ROW * ordered.length + 6;
+  var LEFT = 232, RIGHT = 742;
+  var svg = document.getElementById('graph');
+  svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+
+  function el(name, attrs, parent) {
+    var node = document.createElementNS(NS, name);
+    Object.keys(attrs).forEach(function (k) { node.setAttribute(k, attrs[k]); });
+    if (parent) parent.appendChild(node);
+    return node;
+  }
+  function text(parent, x, y, value, anchor, cls) {
+    var t = el('text', { x: x, y: y, 'text-anchor': anchor, 'class': cls || '' }, parent);
+    t.textContent = value;
+    return t;
+  }
+
+  var termY = {}, sectionY = {};
+  ordered.forEach(function (t, i) { termY[t.term] = TOP + ROW * (i + 0.5); });
+  var sectionRow = (ROW * ordered.length) / data.sections.length;
+  data.sections.forEach(function (s, i) { sectionY[s.key] = TOP + sectionRow * (i + 0.5); });
+
+  text(svg, LEFT, 14, 'Vocabulary term', 'end', 'column-title');
+  text(svg, RIGHT, 14, 'Report section', 'start', 'column-title');
+  text(svg, 8, 14, 'Exp · Imp', 'start', 'column-title');
+  text(svg, 1032, 14, 'Exp · Imp', 'end', 'column-title');
+
+  var edgeLayer = el('g', {}, svg);
+  var nodeLayer = el('g', {}, svg);
+  var edges = [];
+
+  ordered.forEach(function (t) {
+    var pairs = {};
+    t.hits.forEach(function (h) {
+      var id = h.section + '|' + h.kind;
+      pairs[id] = pairs[id] || { section: h.section, kind: h.kind, count: 0 };
+      pairs[id].count += 1;
+    });
+    Object.keys(pairs).forEach(function (id) {
+      var p = pairs[id];
+      var both = pairs[p.section + '|explicit'] && pairs[p.section + '|implicit'];
+      var shift = both ? (p.kind === 'explicit' ? -3 : 3) : 0;
+      var y1 = termY[t.term] + shift, y2 = sectionY[p.section] + shift;
+      var mid = (LEFT + RIGHT) / 2;
+      var d = 'M' + (LEFT + 8) + ' ' + y1 + ' C' + mid + ' ' + y1 + ' ' + mid + ' ' + y2 + ' ' + (RIGHT - 8) + ' ' + y2;
+      var path = el('path', {
+        d: d, 'class': 'edge ' + p.kind,
+        'stroke-width': Math.min(1.5 + (p.count - 1) * 0.9, 6)
+      }, edgeLayer);
+      var hit = el('path', { d: d, 'class': 'edge-hit' }, edgeLayer);
+      var edge = { path: path, hit: hit, term: t.term, section: p.section, kind: p.kind, count: p.count };
+      edges.push(edge);
+      hit.addEventListener('mousemove', function (e) { showTip(e, edge); });
+      hit.addEventListener('mouseleave', hideTip);
+      hit.addEventListener('click', function () { select({ type: 'term', id: t.term }); });
+    });
+  });
+
+  var nodes = [];
+  function makeNode(info) {
+    var g = el('g', {
+      'class': 'node', tabindex: 0, role: 'button',
+      'aria-label': info.label + ': ' + info.explicit + ' explicit, ' + info.implicit + ' implicit'
+    }, nodeLayer);
+    el('circle', { cx: info.x, cy: info.y, r: 5 }, g);
+    var isTerm = info.type === 'term';
+    text(g, isTerm ? info.x - 12 : info.x + 12, info.y + 5, info.label, isTerm ? 'end' : 'start');
+    info.countNode = text(g, isTerm ? 8 : 1032, info.y + 5, '', isTerm ? 'start' : 'end', 'count');
+    info.group = g;
+    g.addEventListener('mouseenter', function () { preview(info); });
+    g.addEventListener('mouseleave', function () { preview(null); });
+    g.addEventListener('focus', function () { preview(info); });
+    g.addEventListener('blur', function () { preview(null); });
+    g.addEventListener('click', function () { select({ type: info.type, id: info.id }); });
+    g.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); select({ type: info.type, id: info.id }); }
+    });
+    nodes.push(info);
+  }
+  ordered.forEach(function (t) {
+    makeNode({ type: 'term', id: t.term, label: t.term, x: LEFT, y: termY[t.term], explicit: t.explicit, implicit: t.implicit });
+  });
+  data.sections.forEach(function (s) {
+    var hits = [];
+    data.terms.forEach(function (t) { hits = hits.concat(t.hits.filter(function (h) { return h.section === s.key; })); });
+    makeNode({
+      type: 'section', id: s.key, label: s.label, x: RIGHT, y: sectionY[s.key],
+      explicit: hits.filter(function (h) { return h.kind === 'explicit'; }).length,
+      implicit: hits.filter(function (h) { return h.kind === 'implicit'; }).length
+    });
+  });
+
+  function visible(edge) { return mode === 'both' || mode === edge.kind; }
+  function matches(edge, focus) {
+    return focus.type === 'term' ? edge.term === focus.id : edge.section === focus.id;
+  }
+
+  function paint(focus) {
+    edges.forEach(function (e) {
+      var show = visible(e);
+      e.path.style.display = show ? '' : 'none';
+      e.hit.style.display = show ? '' : 'none';
+      e.path.classList.toggle('on', !!focus && matches(e, focus));
+      e.path.classList.toggle('off', !!focus && !matches(e, focus));
+    });
+    var linked = {};
+    if (focus) {
+      edges.forEach(function (e) {
+        if (visible(e) && matches(e, focus)) { linked['term:' + e.term] = 1; linked['section:' + e.section] = 1; }
+      });
+    }
+    nodes.forEach(function (n) {
+      var key = n.type + ':' + n.id;
+      var isFocus = focus && focus.type === n.type && focus.id === n.id;
+      n.group.classList.toggle('active', !!isFocus);
+      n.group.classList.toggle('faded', !!focus && !isFocus && !linked[key]);
+      n.countNode.textContent = mode === 'both' ? n.explicit + ' · ' + n.implicit
+        : mode === 'explicit' ? n.explicit : n.implicit;
+    });
+  }
+  function preview(info) { paint(info ? { type: info.type, id: info.id } : selected); }
+
+  function showTip(event, edge) {
+    var tip = document.getElementById('tooltip');
+    var label = data.sections[sectionIndex[edge.section]].label;
+    tip.textContent = edge.term + ' → ' + label + ': ' + edge.count + ' ' + edge.kind;
+    tip.style.display = 'block';
+    tip.style.left = Math.min(event.clientX + 12, window.innerWidth - 270) + 'px';
+    tip.style.top = (event.clientY + 12) + 'px';
+  }
+  function hideTip() { document.getElementById('tooltip').style.display = 'none'; }
+
+  function select(next) {
+    selected = selected && selected.type === next.type && selected.id === next.id ? null : next;
+    paint(selected);
+    renderEvidence();
+  }
+
+  function renderEvidence() {
+    var title = document.getElementById('evidence-title');
+    var hint = document.getElementById('evidence-hint');
+    var list = document.getElementById('evidence-list');
+    list.textContent = '';
+    if (!selected) {
+      title.textContent = 'Evidence';
+      hint.textContent = 'Select a term or section in the graph or table.';
+      return;
+    }
+    var rows = [];
+    data.terms.forEach(function (t) {
+      t.hits.forEach(function (h) {
+        var match = selected.type === 'term' ? t.term === selected.id : h.section === selected.id;
+        if (match && (mode === 'both' || mode === h.kind)) rows.push({ term: t.term, hit: h });
+      });
+    });
+    rows.sort(function (a, b) { return sectionIndex[a.hit.section] - sectionIndex[b.hit.section]; });
+    title.textContent = selected.type === 'term' ? selected.id
+      : data.sections[sectionIndex[selected.id]].label;
+    hint.textContent = rows.length + (rows.length === 1 ? ' mention' : ' mentions') +
+      (mode === 'both' ? '' : ' (' + mode + ' only)');
+    rows.forEach(function (r) {
+      var li = document.createElement('li');
+      li.className = r.hit.kind;
+      var meta = document.createElement('span');
+      meta.className = 'meta';
+      var where = data.sections[sectionIndex[r.hit.section]].label;
+      meta.textContent = r.hit.kind + ' · ' + (selected.type === 'term' ? where : r.term);
+      li.appendChild(meta);
+      var q = r.hit.quote;
+      li.appendChild(document.createTextNode('…' + q[0] + ' '));
+      var mark = document.createElement('mark');
+      mark.textContent = q[1];
+      li.appendChild(mark);
+      li.appendChild(document.createTextNode((/^[A-Za-z0-9(]/.test(q[2]) ? ' ' : '') + q[2] + '…'));
+      list.appendChild(li);
+    });
+  }
+
+  /* Table view of the same counts. */
+  var sorted = data.terms.slice().sort(function (a, b) {
+    return (b.explicit + b.implicit) - (a.explicit + a.implicit) || a.term.localeCompare(b.term);
+  });
+  var scale = Math.max.apply(null, data.terms.map(function (t) { return Math.max(t.explicit, t.implicit); }));
+  var table = document.getElementById('table');
+  var head = table.insertRow();
+  ['Term', 'Explicit', 'Implicit', 'Sections used'].forEach(function (h) {
+    var th = document.createElement('th');
+    th.textContent = h;
+    head.appendChild(th);
+  });
+  function meter(kind, value) {
+    var box = document.createElement('div');
+    box.className = 'meter ' + kind;
+    var track = document.createElement('i');
+    var fill = document.createElement('b');
+    fill.style.width = (value / scale * 100) + '%';
+    track.appendChild(fill);
+    var num = document.createElement('span');
+    num.textContent = value;
+    box.appendChild(track);
+    box.appendChild(num);
+    return box;
+  }
+  sorted.forEach(function (t) {
+    var row = table.insertRow();
+    var button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = t.term;
+    button.addEventListener('click', function () {
+      select({ type: 'term', id: t.term });
+      document.getElementById('evidence-title').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+    row.insertCell().appendChild(button);
+    row.insertCell().appendChild(meter('explicit', t.explicit));
+    row.insertCell().appendChild(meter('implicit', t.implicit));
+    var seen = {};
+    t.hits.forEach(function (h) { seen[h.section] = 1; });
+    row.insertCell().textContent = Object.keys(seen).length;
+  });
+
+  document.querySelectorAll('.segmented button').forEach(function (button) {
+    button.addEventListener('click', function () {
+      mode = button.getAttribute('data-mode');
+      document.querySelectorAll('.segmented button').forEach(function (b) {
+        b.setAttribute('aria-pressed', String(b === button));
+      });
+      paint(selected);
+      renderEvidence();
+    });
+  });
+
+  paint(null);
+})();
+</script>
+</body>
+</html>

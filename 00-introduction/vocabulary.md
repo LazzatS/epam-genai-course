@@ -2,6 +2,8 @@
 
 Terms from my research report, [Generative AI Applications](generative-ai-applications-report.md), explained in my own words.
 
+**Relationship graph:** [open the interactive graph](https://lazzats.github.io/epam-genai-course/00-introduction/vocabulary-graph.html), which shows where each term is used in the report, with explicit and implicit frequencies shown separately.
+
 ## Generative AI
 
 **Definition:** Generative AI is a technology used to generate new content. Each model is trained on its own type of data.
